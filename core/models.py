@@ -46,9 +46,6 @@ class City(models.Model):
     name = models.CharField(max_length=100)
     time_zone = models.ForeignKey(TimeZone, on_delete=models.CASCADE, related_name="time_zones", blank=True, null=True)
 
-    # def get_name(self):
-    #     return translit(self.name.lower(), 'ru', reversed=True)
-
     def __str__(self):
         return f"{self.name} {self.time_zone}"
 
@@ -87,22 +84,6 @@ class Stop(models.Model):
     direction = models.ForeignKey(Direction, on_delete=models.CASCADE, related_name="stops", blank=True, null=True)
     schedule = ArrayField(models.DateTimeField(blank=True, null=True), blank=True, null=True)
     update_date = models.DateTimeField(blank=True, null=True)
-
-    @sync_to_async
-    def is_need_to_update(self):
-        now_time = datetime.now(timezone(self.direction.transport.city.time_zone.name))
-        print(settings.UPDATE_HOUR)
-        update_time = datetime(year=now_time.year, month=now_time.month, day=now_time.day, hour=settings.UPDATE_HOUR)
-        if not self.update_date or now_time > update_time > self.update_date:
-            return True
-        return False
-
-    # @sync_to_async
-    # def write_update_date(self):
-    #     now_time = datetime.now(timezone(self.city.time_zone.name))
-    #     update_time = datetime(year=now_time.year, month=now_time.month, day=now_time.day, hour=now_time.hour)
-    #     self.update_date = update_time
-    #     self.save()
 
     def __str__(self):
         return f"{self.name} {self.direction}"

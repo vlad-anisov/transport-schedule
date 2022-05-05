@@ -1,16 +1,18 @@
 import asyncio
 import re
 from datetime import datetime, timedelta
+
+from pytz import timezone
 from bs4 import BeautifulSoup
-from asgiref.sync import sync_to_async
+
+from django.utils import timezone
+from django.utils.timezone import make_aware
 
 from .base_schedule_source import BaseScheduleSource
 
 
 class Kogda(BaseScheduleSource):
-    countries = [
-        {"name": "Belarus", "time_zones": ["Europe/Minsk"]},
-    ]
+
     main_url = "https://kogda.by"
     headers = {"User-Agent": "Mozilla/5.0"}
     transport_type_to_parameter_type = {
@@ -18,7 +20,7 @@ class Kogda(BaseScheduleSource):
         "trolleybus": "trolleybus",
         "tram": "tram",
     }
-    convert_name = {
+    convert_city_name = {
         "Минск": "minsk",
         "Брест": "brest",
         "Гомель": "gomel",
@@ -30,7 +32,13 @@ class Kogda(BaseScheduleSource):
         "Пинск": "pinsk",
     }
 
-    async def _get_cities_data(self, time_zone, session):
+    async def _get_countries_data(self, session):
+        return ["Беларусь"]
+
+    async def _get_time_zones_data(self, country, session):
+        return ["Europe/Minsk"]
+
+    async def _get_cities_data(self, time_zone, data, session):
         url = self.main_url
         async with session.get(url, headers=self.headers, timeout=10000) as response:
             soup = BeautifulSoup(await response.text(), "html.parser")
@@ -38,66 +46,52 @@ class Kogda(BaseScheduleSource):
             # return ["Брест"]
             return [x.text.strip() for x in names]
 
-    async def _get_transports_data(self, city, session):
-        data = []
-        city_name = self.convert_name[city.name]
+    async def _get_transports_data(self, city, data, session):
+        result = []
+        city_name = self.convert_city_name[city.name]
         url = f"{self.main_url}/routes/{city_name}/"
         async with session.get(f"{url}autobus", headers=self.headers, timeout=10000) as response:
             soup = BeautifulSoup(await response.text(), "html.parser")
             names = soup.find_all("a", class_="btn btn-primary bold route")
-            data.extend([{"type": "bus", "name": x.text.strip()} for x in names])
+            result.extend([{"type": "bus", "name": x.text.strip()} for x in names])
         async with session.get(f"{url}trolleybus", headers=self.headers) as response:
             soup = BeautifulSoup(await response.text(), "html.parser")
             names = soup.find_all("a", class_="btn btn-primary bold route")
-            data.extend([{"type": "trolleybus", "name": x.text.strip()} for x in names])
+            result.extend([{"type": "trolleybus", "name": x.text.strip()} for x in names])
         async with session.get(f"{url}tram", headers=self.headers) as response:
             soup = BeautifulSoup(await response.text(), "html.parser")
             names = soup.find_all("a", class_="btn btn-primary bold route")
-            data.extend([{"type": "tram", "name": x.text.strip()} for x in names])
-        return data
+            result.extend([{"type": "tram", "name": x.text.strip()} for x in names])
+        return result
 
-    async def _get_directions_data(self, transport, session):
+    async def _get_directions_data(self, transport, data, session):
         transport_type = self.transport_type_to_parameter_type[transport.type]
-        url = f"{self.main_url}/routes/{await self._get_city_name(transport)}/{transport_type}/{transport.name}"
+        city_name = self.convert_city_name[data.get("city_name")]
+        url = f"{self.main_url}/routes/{city_name}/{transport_type}/{transport.name}"
         async with session.get(url, headers=self.headers, timeout=10000) as response:
             soup = BeautifulSoup(await response.text(), "html.parser")
             names = soup.find_all("a", {"data-parent": "#directions"})
             return [x.text.strip() for x in names]
 
-    async def _get_stops_data(self, direction, session):
-        city_name = await self._get_city_name_from_direction(direction)
-        transport_name = await self._get_transport_name_from_direction(direction)
-        transport_type = self.transport_type_to_parameter_type[direction.transport.type]
+    async def _get_stops_data(self, direction, data, session):
+        city_name = self.convert_city_name[data.get("city_name")]
+        transport_name = data.get("transport_name")
+        transport_type = self.transport_type_to_parameter_type[data.get("transport_type")]
         url = f"{self.main_url}/routes/{city_name}/{transport_type}/{transport_name}"
         async with session.get(url, headers=self.headers, timeout=10000) as response:
             soup = BeautifulSoup(await response.text(), "html.parser")
             direction_number = soup.find("a", text=re.compile(direction.name))
-            if direction_number:
-                if not hasattr(direction_number, "attrs"):
-                    print("-----------------")
-                    print("No attrs")
-                    print(url)
-                    print(direction_number)
-                    print("-----------------")
-                direction_number = direction_number.attrs["href"]
-                bus_stops = soup.select(f"{direction_number} > ul > li")
-                return [x.find("a").text.strip() for x in bus_stops]
-            else:
-                print("-----------------")
-                print(response.text())
-                print("No direction_number")
-                print(re.compile(direction.name))
-                print(url)
-                print("-----------------")
-                return []
+            direction_number = direction_number.attrs["href"]
+            bus_stops = soup.select(f"{direction_number} > ul > li")
+            return [x.find("a").text.strip() for x in bus_stops]
 
-    async def _get_schedules_data(self, stop, session):
+    async def _get_schedules_data(self, stop, data, session):
         url = f"{self.main_url}/api/getTimetable"
         global_parameter = {
-            "city": await self._get_city_name_from_stop(stop),
-            "transport": self.transport_type_to_parameter_type[stop.direction.transport.type],
-            "route": stop.direction.transport.name,
-            "direction": stop.direction.name,
+            "city": self.convert_city_name[data.get("city_name")],
+            "transport": self.transport_type_to_parameter_type[data.get("transport_type")],
+            "route": data.get("transport_name"),
+            "direction": data.get("direction_name"),
             "busStop": stop.name,
         }
         parameters = []
@@ -105,25 +99,15 @@ class Kogda(BaseScheduleSource):
             date_string = (datetime.now() + timedelta(days=index)).strftime("%Y-%m-%d")
             global_parameter["date"] = date_string
             parameters.append((global_parameter, date_string))
-        tasks = [self._get_schedule_data(url, parameter, date_string, session) for parameter, date_string in parameters]
+        tasks = [self._get_schedule_data(url, parameter, date_string, data, session) for parameter, date_string in parameters]
         result = await asyncio.gather(*tasks)
         return [x for sublist in result for x in sublist]
 
-    @sync_to_async
-    def _get_city_name_from_stop(self, stop):
-        return self.convert_name[stop.direction.transport.city.name]
-
-    async def _get_schedule_data(self, url, parameter, date_string, session):
+    async def _get_schedule_data(self, url, parameter, date_string, data, session):
         async with session.get(url, params=parameter, headers=self.headers, timeout=10000) as response:
-            if response.status != 200:
-                print("-----------------")
-                print("No response")
-                print(response.url)
-                print("-----------------")
-                return []
             timetable = await response.json()
             timetable = await self._get_fixed_text_times(timetable["timetable"])
-        return [datetime.strptime(x + " " + date_string, "%H:%M %Y-%m-%d") for x in timetable]
+        return [make_aware(datetime.strptime(x + " " + date_string, "%H:%M %Y-%m-%d"), data.get("time_zone")) for x in timetable]
 
     async def _get_fixed_text_times(self, text_times):
         fixed_text_times = []
@@ -148,19 +132,3 @@ class Kogda(BaseScheduleSource):
         if int(text_time.split(":")[1]) > 59:
             return f"{text_time.split(':')[0]}:59"
         return text_time
-
-    @sync_to_async
-    def _get_city_name(self, transport):
-        return self.convert_name[transport.city.name]
-
-    @sync_to_async
-    def _get_city_name_from_direction(self, direction):
-        return self.convert_name[direction.transport.city.name]
-
-    @sync_to_async
-    def _get_transport_name_from_direction(self, direction):
-        return direction.transport.name
-
-    @sync_to_async
-    def _get_city_name_from_stop(self, stop):
-        return self.convert_name[stop.direction.transport.city.name]
