@@ -1,11 +1,22 @@
+from asgiref.sync import sync_to_async
+from whenareyou import whenareyou
+from datetime import datetime
+from pytz import timezone
+
 from django.db import models
 from django.contrib.postgres.fields import ArrayField
+from django.conf import settings
 
-TRANSPORT_TYPES = [
-    ('bus', 'Bus'),
-    ('trolleybus', 'Trolleybus'),
-    ('tram', 'Tram'),
-]
+TRANSPORT_TYPES = (
+    ("bus", "Bus"),
+    ("trolleybus", "Trolleybus"),
+    ("tram", "Tram"),
+)
+
+TIME_FORMATS = (
+    ("time_interval", "Time interval"),
+    ("time", "Time"),
+)
 
 
 class Country(models.Model):
@@ -15,56 +26,93 @@ class Country(models.Model):
         return self.name
 
     class Meta:
-        verbose_name = 'Country'
-        verbose_name_plural = 'Countries'
+        verbose_name = "Country"
+        verbose_name_plural = "Countries"
+
+
+class TimeZone(models.Model):
+    name = models.CharField(max_length=100)
+    country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="time_zones", blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.name} {self.country}"
+
+    class Meta:
+        verbose_name = "Time Zone"
+        verbose_name_plural = "Time Zones"
 
 
 class City(models.Model):
     name = models.CharField(max_length=100)
-    country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name='cities', blank=True, null=True)
+    time_zone = models.ForeignKey(TimeZone, on_delete=models.CASCADE, related_name="time_zones", blank=True, null=True)
+
+    # def get_name(self):
+    #     return translit(self.name.lower(), 'ru', reversed=True)
 
     def __str__(self):
-        return f'{self.name} {self.country.name}'
+        return f"{self.name} {self.time_zone}"
 
     class Meta:
-        verbose_name = 'City'
-        verbose_name_plural = 'Cities'
+        verbose_name = "City"
+        verbose_name_plural = "Cities"
 
 
 class Transport(models.Model):
     name = models.CharField(max_length=100)
     type = models.CharField(choices=TRANSPORT_TYPES, max_length=100)
-    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='transports', blank=True, null=True)
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name="transports", blank=True, null=True)
 
     def __str__(self):
-        return f'{self.type} {self.name} {self.city}'
+        return f"{self.type} {self.name} {self.city}"
 
     class Meta:
-        verbose_name = 'Transport'
-        verbose_name_plural = 'Transports'
+        verbose_name = "Transport"
+        verbose_name_plural = "Transports"
 
 
 class Direction(models.Model):
     name = models.CharField(max_length=100)
-    transport = models.ForeignKey(Transport, on_delete=models.CASCADE, related_name='directions', blank=True, null=True)
+    transport = models.ForeignKey(Transport, on_delete=models.CASCADE, related_name="directions", blank=True, null=True)
 
     def __str__(self):
-        return f'{self.name} {self.transport}'
+        return f"{self.name} {self.transport}"
 
     class Meta:
-        verbose_name = 'Direction'
-        verbose_name_plural = 'Directions'
+        verbose_name = "Direction"
+        verbose_name_plural = "Directions"
 
 
 class Stop(models.Model):
     name = models.CharField(max_length=100)
-    direction = models.ForeignKey(Direction, on_delete=models.CASCADE, related_name='stops',
-                                  blank=True, null=True)
+    direction = models.ForeignKey(Direction, on_delete=models.CASCADE, related_name="stops", blank=True, null=True)
     schedule = ArrayField(models.DateTimeField(blank=True, null=True), blank=True, null=True)
+    update_date = models.DateTimeField(blank=True, null=True)
+
+    @sync_to_async
+    def is_need_to_update(self):
+        now_time = datetime.now(timezone(self.direction.transport.city.time_zone.name))
+        print(settings.UPDATE_HOUR)
+        update_time = datetime(year=now_time.year, month=now_time.month, day=now_time.day, hour=settings.UPDATE_HOUR)
+        if not self.update_date or now_time > update_time > self.update_date:
+            return True
+        return False
+
+    # @sync_to_async
+    # def write_update_date(self):
+    #     now_time = datetime.now(timezone(self.city.time_zone.name))
+    #     update_time = datetime(year=now_time.year, month=now_time.month, day=now_time.day, hour=now_time.hour)
+    #     self.update_date = update_time
+    #     self.save()
 
     def __str__(self):
-        return f'{self.name} {self.direction}'
+        return f"{self.name} {self.direction}"
 
     class Meta:
-        verbose_name = 'Stop'
-        verbose_name_plural = 'Stops'
+        verbose_name = "Stop"
+        verbose_name_plural = "Stops"
+
+
+class User(models.Model):
+    yandex_id = models.CharField(max_length=100)
+    main_stop = models.ForeignKey(Stop, on_delete=models.CASCADE, related_name="+", blank=True, null=True)
+    time_format = models.CharField(max_length=13, choices=TIME_FORMATS, default="time_interval")
