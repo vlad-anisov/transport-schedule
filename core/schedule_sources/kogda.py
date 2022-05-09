@@ -1,12 +1,6 @@
 import asyncio
-import re
 from datetime import datetime, timedelta
-
-from pytz import timezone
 from bs4 import BeautifulSoup
-
-from django.utils import timezone
-from django.utils.timezone import make_aware
 
 from .base_schedule_source import BaseScheduleSource
 
@@ -43,7 +37,7 @@ class Kogda(BaseScheduleSource):
         async with session.get(url, headers=self.headers, timeout=10000) as response:
             soup = BeautifulSoup(await response.text(), "html.parser")
             names = soup.find_all("a", {"data-parent": "#cities"})
-            # return ["Брест"]
+            return ["Брест"]
             return [x.text.strip() for x in names]
 
     async def _get_transports_data(self, city, data, session):
@@ -80,7 +74,14 @@ class Kogda(BaseScheduleSource):
         url = f"{self.main_url}/routes/{city_name}/{transport_type}/{transport_name}"
         async with session.get(url, headers=self.headers, timeout=10000) as response:
             soup = BeautifulSoup(await response.text(), "html.parser")
-            direction_number = soup.find("a", text=re.compile(direction.name))
+            direction_number = soup.select_one(f'a:-soup-contains("{direction.name}")')
+            # if not direction_number:
+            #     print("------------------------------")
+            #     print(url)
+            #     print(direction.name)
+            #     print(await response.text())
+            #     print("------------------------------")
+            #     return []
             direction_number = direction_number.attrs["href"]
             bus_stops = soup.select(f"{direction_number} > ul > li")
             return [x.find("a").text.strip() for x in bus_stops]
@@ -97,8 +98,9 @@ class Kogda(BaseScheduleSource):
         parameters = []
         for index in range(2):
             date_string = (datetime.now() + timedelta(days=index)).strftime("%Y-%m-%d")
-            global_parameter["date"] = date_string
-            parameters.append((global_parameter, date_string))
+            parameter = global_parameter.copy()
+            parameter["date"] = date_string
+            parameters.append((parameter, date_string))
         tasks = [self._get_schedule_data(url, parameter, date_string, data, session) for parameter, date_string in parameters]
         result = await asyncio.gather(*tasks)
         return [x for sublist in result for x in sublist]
@@ -107,7 +109,7 @@ class Kogda(BaseScheduleSource):
         async with session.get(url, params=parameter, headers=self.headers, timeout=10000) as response:
             timetable = await response.json()
             timetable = await self._get_fixed_text_times(timetable["timetable"])
-        return [make_aware(datetime.strptime(x + " " + date_string, "%H:%M %Y-%m-%d"), data.get("time_zone")) for x in timetable]
+            return [f'{x} {date_string}' for x in timetable]
 
     async def _get_fixed_text_times(self, text_times):
         fixed_text_times = []

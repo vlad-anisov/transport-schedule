@@ -1,6 +1,9 @@
+from .models import City
+
+
 def validate(*parameters):
     def validate_parameters_for_decorator():
-        valid_parameters = ["yandex_user", "main_bus_stop", "bus_name", "bus_stop_name", "guiding_bus_stop_name"]
+        valid_parameters = ["city_name", "transport_name", "transport_type", "stop_name", "guiding_stop_name"]
         if not all(parameter in valid_parameters for parameter in parameters):
             string_with_parameters = " ".join(parameters)
             raise ValueError(f"Invalid parameters {string_with_parameters} in validate decorator")
@@ -15,22 +18,52 @@ def validate(*parameters):
 
             def get_message_error():
                 errors = []
+                required_commands = []
                 for parameter in parameters:
-                    if getattr(self, parameter) is None:
+                    if not getattr(self, parameter):
+                        transport_type = getattr(self, "transport_type")
+                        if transport_type:
+                            convert_type = {
+                                "bus": "автобуса",
+                                "trolleybus": "троллейбуса",
+                                "tram": "трамвая",
+                            }
+                            transport_type = convert_type[transport_type]
+                        else:
+                            transport_type = "транспорта"
                         parameter_to_error = {
-                            "yandex_user": "зайти в свой аккаунт яндекса",
-                            "main_bus_stop": "заранее сказать какой автобус запомнить",
-                            "bus_name": "сказать номер автобуса",
-                            "bus_stop_name": "сказать название автобусной остановки",
-                            "guiding_bus_stop_name": "сказать название автобусной остановки в сторону которой будет "
-                                                     "ехать автобус",
+                            "city_name": "название города",
+                            "transport_name": f"номер {transport_type}",
+                            "transport_type": f"номер {transport_type}",
+                            "stop_name": "название остановки",
+                            "guiding_stop_name": f"название остановки куда едет {transport_type[:-1]}",
                         }
                         errors.append(parameter_to_error[parameter])
-                return "Извините, для этого вы должны " + errors_to_text(errors)
+                        parameter_to_command = {
+                            "city_name": "save_city",
+                            "transport_name": "save_transport",
+                            "transport_type": "save_transport",
+                            "stop_name": "save_stop",
+                            "guiding_stop_name": "save_guiding_stop",
+                        }
+                        required_commands.append(parameter_to_command[parameter])
+                required_commands = list(set(required_commands))
+                errors = list(set(errors))
+                print(errors)
+                if len(required_commands) == 1:
+                    self.state["current_command"] = required_commands[0]
+                if required_commands[0] == "save_city":
+                    self.state["current_command"] = required_commands[0]
+                    existing_cities = list(City.objects.values_list("name", flat=True))
+                    enumeration_of_cities = ", ".join(existing_cities)
+                    return (
+                        f"Скажите в каком городе вы находитесь. Доступны города: {enumeration_of_cities}"
+                    )
+                return "Скажите " + errors_to_text(errors)
 
             def errors_to_text(message_errors):
                 if len(message_errors) > 1:
-                    return ", ".join(message_errors[:-1]) + " и " + message_errors[0]
+                    return ", ".join(message_errors[:-1]) + " и " + message_errors[-1]
                 return message_errors[0]
 
             if is_valid():

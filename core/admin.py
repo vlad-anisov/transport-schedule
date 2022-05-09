@@ -33,10 +33,17 @@ class CityAdmin(admin.ModelAdmin):
     ]
 
 
+class StopAdmin(admin.ModelAdmin):
+    search_fields = (
+        "name",
+    )
+
+admin.site.register(Stop, StopAdmin)
+
 admin.site.register(Country, CountryAdmin)
 admin.site.register(TimeZone, TimeZoneAdmin)
 admin.site.register(City, CityAdmin)
 admin.site.register(Transport)
 admin.site.register(Direction)
-admin.site.register(Stop)
+# admin.site.register(Stop)
 admin.site.register(User)

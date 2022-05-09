@@ -8,6 +8,7 @@ SCHEDULE_SOURCES = [
 
 
 class ScheduleUpdater:
+
     @staticmethod
     async def update():
         for source in SCHEDULE_SOURCES:

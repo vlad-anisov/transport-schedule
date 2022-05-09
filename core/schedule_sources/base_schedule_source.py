@@ -1,7 +1,6 @@
-from django.utils.timezone import make_aware, now
+from django.utils.timezone import now
 from pytz import timezone
 import asyncio
-from datetime import datetime
 import aiohttp
 from asgiref.sync import sync_to_async
 from aiohttp_retry import RetryClient

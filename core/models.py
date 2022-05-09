@@ -82,7 +82,7 @@ class Direction(models.Model):
 class Stop(models.Model):
     name = models.CharField(max_length=100)
     direction = models.ForeignKey(Direction, on_delete=models.CASCADE, related_name="stops", blank=True, null=True)
-    schedule = ArrayField(models.DateTimeField(blank=True, null=True), blank=True, null=True)
+    schedule = ArrayField(models.CharField(max_length=16, blank=True, null=True), blank=True, null=True)
     update_date = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
@@ -94,6 +94,7 @@ class Stop(models.Model):
 
 
 class User(models.Model):
-    yandex_id = models.CharField(max_length=100)
-    main_stop = models.ForeignKey(Stop, on_delete=models.CASCADE, related_name="+", blank=True, null=True)
+    user_id = models.CharField(max_length=100)
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name="+", blank=True, null=True)
+    stops = models.ManyToManyField(Stop)
     time_format = models.CharField(max_length=13, choices=TIME_FORMATS, default="time_interval")
