@@ -52,8 +52,8 @@ def validate(*parameters):
                 print(errors)
                 if len(required_commands) == 1:
                     self.state["current_command"] = required_commands[0]
-                if required_commands[0] == "save_city":
-                    self.state["current_command"] = required_commands[0]
+                if "save_city" in required_commands:
+                    self.state["current_command"] = "save_city"
                     existing_cities = list(City.objects.values_list("name", flat=True))
                     enumeration_of_cities = ", ".join(existing_cities)
                     return (

@@ -96,7 +96,7 @@ class Kogda(BaseScheduleSource):
             "busStop": stop.name,
         }
         parameters = []
-        for index in range(2):
+        for index in range(3):
             date_string = (datetime.now() + timedelta(days=index)).strftime("%Y-%m-%d")
             parameter = global_parameter.copy()
             parameter["date"] = date_string

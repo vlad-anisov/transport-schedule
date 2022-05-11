@@ -15,22 +15,57 @@ class TransportInline(admin.TabularInline):
     model = Transport
 
 
+class DirectionInline(admin.TabularInline):
+    model = Direction
+
+
+class StopInline(admin.TabularInline):
+    model = Stop
+
+
 class CountryAdmin(admin.ModelAdmin):
     inlines = [
         TimeZoneInline,
     ]
+    search_fields = (
+        "name",
+    )
 
 
 class TimeZoneAdmin(admin.ModelAdmin):
     inlines = [
         CityInline,
     ]
+    search_fields = (
+        "name",
+    )
 
 
 class CityAdmin(admin.ModelAdmin):
     inlines = [
         TransportInline,
     ]
+    search_fields = (
+        "name",
+    )
+
+
+class TransportAdmin(admin.ModelAdmin):
+    inlines = [
+        DirectionInline,
+    ]
+    search_fields = (
+        "name",
+    )
+
+
+class DirectionAdmin(admin.ModelAdmin):
+    inlines = [
+        StopInline,
+    ]
+    search_fields = (
+        "name",
+    )
 
 
 class StopAdmin(admin.ModelAdmin):
@@ -38,12 +73,11 @@ class StopAdmin(admin.ModelAdmin):
         "name",
     )
 
-admin.site.register(Stop, StopAdmin)
 
 admin.site.register(Country, CountryAdmin)
 admin.site.register(TimeZone, TimeZoneAdmin)
 admin.site.register(City, CityAdmin)
-admin.site.register(Transport)
-admin.site.register(Direction)
-# admin.site.register(Stop)
+admin.site.register(Transport, TransportAdmin)
+admin.site.register(Direction, DirectionAdmin)
+admin.site.register(Stop, StopAdmin)
 admin.site.register(User)
