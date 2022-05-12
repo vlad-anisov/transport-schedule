@@ -34,6 +34,8 @@ class Command:
             return "help"
         if self._is_command_for_save_city():
             return "save_city"
+        if self._is_delete_transport():
+            return "delete_transport"
         return "get_schedule"
 
     def _is_command_for_save_last_schedule(self):
@@ -61,6 +63,10 @@ class Command:
             any(x in words or x.isdigit() for x in self.words_from_command)
             or self.state.get("current_command") in current_commands
         ):
+            return True
+
+    def _is_delete_transport(self):
+        if self.state.get("current_command") == "delete_transport" or any([x in ("удали", "удалить", "забудь", "забыть") for x in self.words_from_command]):
             return True
 
     def _get_city_name(self):
@@ -200,6 +206,7 @@ class YandexDialogs:
         self.data = dict2object(request.data)
         self.version = self.data.version
         self.end_session = False
+        self.is_multiple_saved_stops = False
         self.user = self._get_user_from_request()
         self.command = Command(self.data, self.user, self.json_data.get("state", {}).get("session", {}))
         self.state = self._get_state()
@@ -248,12 +255,14 @@ class YandexDialogs:
             stops = self.user.stops.filter(
                 direction__transport__name=self.command.transport_name, direction__transport__type__in=transport_types
             )
-            if len(stops) == 1:
+            if stops:
                 self.command.city_name = stops[0].direction.transport.city.name
                 self.command.transport_name = stops[0].direction.transport.name
                 self.command.transport_type = stops[0].direction.transport.type
                 self.command.guiding_stop_name = stops[0].direction.stops.last().name
                 self.command.stop_name = stops[0].name
+                if len(stops) > 1:
+                    self.is_multiple_saved_stops = True
         state.update(
             {
                 "city_name": self.command.city_name or (self.user.city.name if self.user.city else None),
@@ -267,26 +276,21 @@ class YandexDialogs:
         return state
 
     def _get_city(self):
-        city_name = self.state.get("city_name")
+        city_name = self.city_name
         if city_name:
             return City.objects.filter(name=city_name).first()
         if self.user.city:
             return self.user.city
 
     def _get_transport(self):
-        transport_name = self.state.get("transport_name")
-        transport_type = self.state.get("transport_type")
+        transport_name = self.transport_name
+        transport_type = self.transport_type
         if transport_name and self.city:
             return Transport.objects.filter(name=transport_name, city=self.city, type=transport_type).first()
 
     def _get_direction(self):
-        direction_name = self.state.get("direction_name")
-        if direction_name and self.transport and self.city:
-            return Direction.objects.filter(
-                name=direction_name, transport=self.transport, transport__city=self.city
-            ).first()
-        stop_name = self.state.get("stop_name")
-        guiding_stop_name = self.state.get("guiding_stop_name")
+        stop_name = self.stop_name
+        guiding_stop_name = self.guiding_stop_name
         if guiding_stop_name and stop_name and self.transport and self.city:
             directions = self.transport.directions.all()
             for direction in directions:
@@ -300,7 +304,7 @@ class YandexDialogs:
                     continue
 
     def _get_stop(self):
-        stop_name = self.state.get("stop_name")
+        stop_name = self.stop_name
         if stop_name and self.direction and self.transport and self.city:
             return Stop.objects.filter(
                 name=stop_name,
@@ -310,7 +314,8 @@ class YandexDialogs:
             ).first()
 
     def _get_answer(self):
-        if self.command.type == "get_schedule" and self.stop_name and self.city_name and not self.transport_name:
+        if self.command.type == "get_schedule" and self.stop_name and self.city_name and not self.transport_name \
+                and not self.guiding_stop_name:
             return self._get_schedules_answer()
         command_type_to_answer_method = {
             "welcome": self._get_welcome_answer,
@@ -318,7 +323,7 @@ class YandexDialogs:
             "save_city": self._get_save_city_answer,
             "get_schedule": self._get_schedule_answer,
             "save_last_schedule": self._get_save_last_schedule_answer,
-            # "get bus schedules": self._get_bus_schedules,
+            "delete_transport": self._get_delete_transport_answer,
         }
         return command_type_to_answer_method[self.command.type]()
 
@@ -346,7 +351,7 @@ class YandexDialogs:
 
     def _get_save_city_answer(self):
         if self.command.city_name:
-            self.user.city = City.objects.filter(name=self.state.get("city_name")).first()
+            self.user.city = City.objects.filter(name=self.city_name).first()
             self.user.save()
             self.state.update(
                 {
@@ -404,6 +409,21 @@ class YandexDialogs:
     def _get_schedule_answer(self):
         print(self.state)
         if self.stop:
+            if self.is_multiple_saved_stops:
+                convert_type = {
+                    "bus": "автобуса",
+                    "trolleybus": "троллейбуса",
+                    "tram": "трамвая",
+                }
+                second_convert_type = {
+                    "bus": "автобус",
+                    "trolleybus": "троллейбус",
+                    "tram": "трамвай",
+                }
+                transport_type = convert_type[self.transport_type]
+                second_transport_type = second_convert_type[self.transport_type]
+                return f"У вас несколько сохраннёных маршрутов для {transport_type} номер {self.transport_name}. " \
+                       f"Скажите откуда и куда движется {second_transport_type}"
             now_date = now().astimezone(timezone(self.city.time_zone.name)).replace(tzinfo=utc)
             schedule = [datetime.strptime(x, "%H:%M %Y-%m-%d").replace(tzinfo=utc) for x in self.stop.schedule]
             schedule = [x for x in schedule if x > now_date + timedelta(minutes=1)][:2]
@@ -425,22 +445,24 @@ class YandexDialogs:
                 if self.stop in self.user.stops.all():
                     self.end_session = True
                     return (
-                        f"{transport_type} номер {self.transport.name}, {self.direction.name} будет через {first_time_interval} в {first_time}, "
-                        f"а следующий через {second_time_interval} в {second_time}"
+                        f"{transport_type} номер {self.transport.name}, {self.direction.name}, "
+                        f"будет через {first_time_interval} в {first_time}, "
+                        f"а следующий через {second_time_interval} в {second_time}."
                     )
                 return (
-                    f"{transport_type} номер {self.transport.name}, {self.direction.name} будет через {first_time_interval} в {first_time}, "
+                    f"{transport_type} номер {self.transport.name}, {self.direction.name}, "
+                    f"будет через {first_time_interval} в {first_time}, "
                     f"а следующий через {second_time_interval} в {second_time}. Хотите сохранить этот маршрут?"
                 )
             elif len(schedule) == 1:
                 if self.stop in self.user.stops.all():
                     self.end_session = True
                     return (
-                        f"{transport_type} номер {self.transport.name}, {self.direction.name} будет через "
+                        f"{transport_type} номер {self.transport.name}, {self.direction.name}, будет через "
                         f"{first_time_interval} в {first_time}"
                     )
                 return (
-                    f"{transport_type} номер {self.transport.name}, {self.direction.name} будет через "
+                    f"{transport_type} номер {self.transport.name}, {self.direction.name}, будет через "
                     f"{first_time_interval} в {first_time}. Хотите сохранить этот маршрут?"
                 )
         convert_type = {
@@ -451,7 +473,7 @@ class YandexDialogs:
         transport_type = convert_type[self.transport.type]
         return (
             f"Я не нашла расписание для {transport_type} номер {self.transport.name} от остановки "
-            f"{self.state.get('stop_name')} до остановки {self.state.get('guiding_stop_name')}"
+            f"{self.stop_name} до остановки {self.guiding_stop_name}"
         )
 
     @validate("city_name", "stop_name")
@@ -479,10 +501,45 @@ class YandexDialogs:
                 first_time_interval = humanize.naturaldelta(schedule - now_date + timedelta(minutes=1))
                 results.append(
                     [
-                        f"{transport_type} номер {transport.name}, {stop.direction.name} будет через "
+                        f"{transport_type} номер {transport.name}, {stop.direction.name}, будет через "
                         f"{first_time_interval} в {text_schedule}.",
                         schedule,
                     ]
                 )
         results = sorted(results, key=lambda x: x[1])[:3]
         return " ".join([x[0] for x in results])
+
+    @validate("city_name", "transport_name", "transport_type")
+    def _get_delete_transport_answer(self):
+        stops = self.user.stops.filter(direction__transport__name=self.transport_name,
+                                       direction__transport__type=self.transport_type)
+        convert_type = {
+            "bus": "автобуса",
+            "trolleybus": "троллейбуса",
+            "tram": "трамвая",
+        }
+        transport_type = convert_type[self.transport_type]
+        if not stops:
+            return f"Я не нашла сохраненных маршрутов для {transport_type} номер {self.transport_name}. " \
+                   f"Повторите еще раз"
+        self.state.update(
+            {
+                "city_name": None,
+                "transport_name": None,
+                "transport_type": None,
+                "guiding_stop_name": None,
+                "stop_name": None,
+                "current_command": None,
+            }
+        )
+        results = []
+        for stop in stops:
+            self.user.stops.remove(stop)
+            results.append(f"{transport_type} номер {self.transport_name}, {stop.direction}")
+        return f"Я удалила " + self.get_messages_to_text(results)
+
+    @staticmethod
+    def get_messages_to_text(messages):
+        if len(messages) > 1:
+            return ". ".join(messages[:-1]) + " и " + messages[-1]
+        return messages[0]
