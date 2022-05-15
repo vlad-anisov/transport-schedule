@@ -19,8 +19,8 @@ class Command:
         self.words_from_command = self.data.request.nlu.tokens
         self.type = self._get_command_type()
         self.city_name = self._get_city_name()
-        self.transport_name = self._get_transport_name()
         self.transport_type = self._get_transport_type()
+        self.transport_name = self._get_transport_name()
         self.stop_name = self._get_stop_name()
         self.guiding_stop_name = self._get_guiding_stop_name()
         self.is_save_last_schedule = self._is_save_last_schedule()
@@ -66,39 +66,61 @@ class Command:
             return True
 
     def _is_delete_transport(self):
-        if self.state.get("current_command") == "delete_transport" or any([x in ("удали", "удалить", "забудь", "забыть") for x in self.words_from_command]):
+        if self.state.get("current_command") == "delete_transport" or any(
+            [x in ("удали", "удалить", "забудь", "забыть") for x in self.words_from_command]
+        ):
             return True
 
     def _get_city_name(self):
-        # if self.type == "save_city":
-        all_city_names = list(City.objects.values_list("name", flat=True).distinct())
-        if all_city_names:
-            for word in self.words_from_command:
-                city_name, percent = process.extractOne(word, all_city_names)
-                if percent > 90:
-                    return city_name
+        if self.type == "save_city":
+            all_city_names = list(City.objects.values_list("name", flat=True).distinct())
+            if all_city_names:
+                words_from_command = self.words_from_command
+                if "город" in words_from_command:
+                    start_index = words_from_command.index("город") + 1
+                    words_from_command = words_from_command[start_index:]
+                if "городе" in words_from_command:
+                    start_index = words_from_command.index("городе") + 1
+                    words_from_command = words_from_command[start_index:]
+                if "городом" in words_from_command:
+                    start_index = words_from_command.index("городом") + 1
+                    words_from_command = words_from_command[start_index:]
+                if "города" in words_from_command:
+                    start_index = words_from_command.index("города") + 1
+                    words_from_command = words_from_command[start_index:]
+                for word in words_from_command:
+                    city_name, percent = process.extractOne(word, all_city_names)
+                    if percent > 90:
+                        return city_name
 
     def _get_transport_name(self):
         fuzzy_transport_name = self._get_fuzzy_transport_name()
         if fuzzy_transport_name:
-            city = self.user.city
-            all_transport_names = list(Transport.objects.filter(city=city).values_list("name", flat=True).distinct())
+            city = self.user.city if self.user and self.user.city else self.state.get("user")
+            transport_type = self.transport_type or self.state.get("transport_type")
+            kwargs = {}
+            if city:
+                kwargs["city"] = city
+            if transport_type:
+                kwargs["type"] = transport_type
+            all_transport_names = list(Transport.objects.filter(**kwargs).values_list("name", flat=True).distinct())
             if all_transport_names:
-                return process.extractOne(fuzzy_transport_name, all_transport_names)[0]
+                transport_name, percent = process.extractOne(fuzzy_transport_name, all_transport_names)
+                if percent > 63:
+                    return transport_name
 
     def _get_fuzzy_transport_name(self):
         current_command = self.state.get("current_command", [])
-        if (
+        if (self.transport_type or not self.state.get("transport_name")) and (
             not current_command
             or any(x in ("get_schedule", "save_transport") for x in current_command)
-            or self.type == "get_schedule"
+            or self.type in ("get_schedule", "delete_transport")
         ):
             for index, word in enumerate(self.words_from_command):
                 if word.isdigit():
                     if len(self.words_from_command) >= index + 2:
                         next_word = self.words_from_command[index + 1]
                         if next_word not in (
-                            "на",
                             "автобус",
                             "троллейбус",
                             "трамвай",
@@ -107,6 +129,18 @@ class Command:
                             "трамвая",
                             "остановка",
                             "остановке",
+                            "с",
+                            "на",
+                            "от",
+                        ) or (
+                            next_word == "с"
+                            and (
+                                len(self.words_from_command) == index + 2
+                                or (
+                                    len(self.words_from_command) > index + 2
+                                    and self.words_from_command[index + 2] == "с"
+                                )
+                            )
                         ):
                             return word + next_word
                     return word
@@ -122,12 +156,21 @@ class Command:
     def _get_stop_name(self):
         fuzzy_stop_name = self._get_fuzzy_stop_name()
         if fuzzy_stop_name:
-            city = self.user.city
-            all_stop_names = list(
-                Stop.objects.filter(direction__transport__city=city).values_list("name", flat=True).distinct()
-            )
+            city = self.user.city if self.user and self.user.city else self.state.get("user")
+            transport_name = self.transport_name or self.state.get("transport_name")
+            transport_type = self.transport_type or self.state.get("transport_type")
+            kwargs = {}
+            if city:
+                kwargs["direction__transport__city"] = city
+            if transport_name:
+                kwargs["direction__transport__name"] = transport_name
+            if transport_type:
+                kwargs["direction__transport__type"] = transport_type
+            all_stop_names = list(Stop.objects.filter(**kwargs).values_list("name", flat=True).distinct())
             if all_stop_names:
-                return process.extractOne(fuzzy_stop_name, all_stop_names)[0]
+                stop_name, percent = process.extractOne(fuzzy_stop_name, all_stop_names)
+                if percent > 63:
+                    return stop_name
 
     def _get_fuzzy_stop_name(self):
         start_index = False
@@ -144,6 +187,8 @@ class Command:
             start_index = words_from_command.index("остановке") + 1
         if "остановка" in words_from_command:
             start_index = words_from_command.index("остановка") + 1
+        if "остановки" in words_from_command:
+            start_index = words_from_command.index("остановки") + 1
         if start_index is not False:
             if "в" in words_from_command:
                 stop_index = words_from_command.index("в")
@@ -162,12 +207,24 @@ class Command:
         print(self.words_from_command)
         fuzzy_guiding_stop_name = self._get_fuzzy_guiding_stop_name()
         if fuzzy_guiding_stop_name:
-            city = self.user.city
-            all_stop_names = list(
-                Stop.objects.filter(direction__transport__city=city).values_list("name", flat=True).distinct()
-            )
+            city = self.user.city if self.user and self.user.city else self.state.get("user")
+            transport_name = self.transport_name or self.state.get("transport_name")
+            transport_type = self.transport_type or self.state.get("transport_type")
+            kwargs = {}
+            if city:
+                kwargs["direction__transport__city"] = city
+            if transport_name:
+                kwargs["direction__transport__name"] = transport_name
+            if transport_type:
+                kwargs["direction__transport__type"] = transport_type
+            all_stop_names = list(Stop.objects.filter(**kwargs).values_list("name", flat=True).distinct())
             if all_stop_names:
-                return process.extractOne(fuzzy_guiding_stop_name, all_stop_names)[0]
+                guiding_stop_name, percent = process.extractOne(fuzzy_guiding_stop_name, all_stop_names)
+                print(percent)
+                print(guiding_stop_name)
+                print(fuzzy_guiding_stop_name)
+                if percent > 63:
+                    return guiding_stop_name
 
     def _get_fuzzy_guiding_stop_name(self):
         start_index = False
@@ -189,6 +246,8 @@ class Command:
             start_index = words_from_command.index("остановки") + 1
         if "остановка" in words_from_command:
             start_index = words_from_command.index("остановка") + 1
+        if "остановке" in words_from_command:
+            start_index = words_from_command.index("остановке") + 1
         if start_index is not False:
             return " ".join(words_from_command[start_index:])
 
@@ -210,7 +269,7 @@ class YandexDialogs:
         self.user = self._get_user_from_request()
         self.command = Command(self.data, self.user, self.json_data.get("state", {}).get("session", {}))
         self.state = self._get_state()
-        self.city_name = self.command.city_name or (self.user.city.name if self.user.city else None)
+        self.city_name = self.command.city_name or (self.user.city.name if self.user and self.user.city else None)
         self.transport_name = self.state.get("transport_name")
         self.transport_type = self.state.get("transport_type")
         self.guiding_stop_name = self.state.get("guiding_stop_name")
@@ -230,7 +289,7 @@ class YandexDialogs:
         return False
 
     def get_response(self):
-        print(self.state)
+        print(self.user)
         response = {
             "version": self.version,
             "response": {
@@ -239,15 +298,27 @@ class YandexDialogs:
             },
             "session_state": self.state,
         }
+        if not self.user:
+            response = {
+                "version": self.version,
+                "start_account_linking": {},
+            }
         return response
 
     def _get_user_from_request(self):
-        user_id = self.data.session.user.user_id
-        return User.objects.get_or_create(user_id=user_id)[0]
+        access_token = self.json_data["session"]["user"].get("access_token")
+        # print(access_token)
+        if access_token:
+            return User.objects.get_or_create(access_token=access_token)[0]
 
     def _get_state(self):
         state = self.json_data.get("state", {}).get("session", {})
-        if self.command.type == "get_schedule" and self.command.transport_name:
+        if (
+            self.command.type == "get_schedule"
+            and (self.command.transport_name or state.get("transport_name"))
+            and not (self.command.stop_name or state.get("stop_name"))
+            and not (self.command.guiding_stop_name or state.get("guiding_stop_name"))
+        ):
             if self.command.transport_type:
                 transport_types = [self.command.transport_type]
             else:
@@ -263,9 +334,13 @@ class YandexDialogs:
                 self.command.stop_name = stops[0].name
                 if len(stops) > 1:
                     self.is_multiple_saved_stops = True
+        if self.user and self.user.city:
+            city = self.user.city.name
+        else:
+            city = False
         state.update(
             {
-                "city_name": self.command.city_name or (self.user.city.name if self.user.city else None),
+                "city_name": self.command.city_name or city,
                 "transport_name": self.command.transport_name or state.get("transport_name"),
                 "transport_type": self.command.transport_type or state.get("transport_type"),
                 "guiding_stop_name": self.command.guiding_stop_name or state.get("guiding_stop_name"),
@@ -279,7 +354,7 @@ class YandexDialogs:
         city_name = self.city_name
         if city_name:
             return City.objects.filter(name=city_name).first()
-        if self.user.city:
+        if self.user and self.user.city:
             return self.user.city
 
     def _get_transport(self):
@@ -314,8 +389,13 @@ class YandexDialogs:
             ).first()
 
     def _get_answer(self):
-        if self.command.type == "get_schedule" and self.stop_name and self.city_name and not self.transport_name \
-                and not self.guiding_stop_name:
+        if (
+            self.command.type == "get_schedule"
+            and self.stop_name
+            and self.city_name
+            and not self.transport_name
+            and not self.guiding_stop_name
+        ):
             return self._get_schedules_answer()
         command_type_to_answer_method = {
             "welcome": self._get_welcome_answer,
@@ -328,10 +408,9 @@ class YandexDialogs:
         return command_type_to_answer_method[self.command.type]()
 
     def _get_welcome_answer(self):
-        if self.user.city:
+        if self.user and self.user.city:
             return (
-                "Чтобы узнать расписание скажите название транспорта, остановки "
-                "и остановки в направлении которой движется транспорт"
+                "Чтобы узнать расписание скажите номер транспорта, откуда и куда он едет"
             )
         self.state["current_command"] = "save_city"
         existing_cities = list(City.objects.values_list("name", flat=True))
@@ -345,8 +424,7 @@ class YandexDialogs:
     @staticmethod
     def _get_help_answer():
         return (
-            "Чтобы узнать расписание скажите название транспорта, остановки "
-            "и остановки в направлении которой движется транспорт"
+            "Чтобы узнать расписание скажите номер транспорта, откуда и куда он едет"
         )
 
     def _get_save_city_answer(self):
@@ -365,9 +443,8 @@ class YandexDialogs:
             )
             return (
                 f"Я запомнила город {self.user.city.name}. "
-                "Теперь вы можете узнать расписание."
-                "Для этого скажите название транспорта, остановки "
-                "и остановки в направлении которой движется транспорт"
+                "Теперь вы можете узнать расписание. "
+                "Для этого скажите номер транспорта, откуда и куда он едет"
             )
         existing_cities = list(City.objects.values_list("name", flat=True))
         enumeration_of_cities = ", ".join(existing_cities)
@@ -387,7 +464,13 @@ class YandexDialogs:
                 }
             )
             self.user.stops.add(self.stop)
-            return "Я запомнила этот маршрут, в следующий раз можно сказать только название транспорта"
+            convert_type = {
+                "bus": "автобуса",
+                "trolleybus": "троллейбуса",
+                "tram": "трамвая",
+            }
+            transport_type = convert_type[self.stop.direction.transport.type]
+            return f"Я запомнила этот маршрут, в следующий раз можно сказать только номер {transport_type}"
         elif self.command.is_save_last_schedule is False:
             self.state.update(
                 {
@@ -400,8 +483,7 @@ class YandexDialogs:
                 }
             )
             return (
-                "Хорошо, чтобы узнать расписание скажите название транспорта, остановки и остановки в направлении "
-                "которой движется транспорт"
+                "Хорошо, чтобы узнать расписание скажите номер транспорта, откуда и куда он едет."
             )
         return "Скажите, сохранять последний маршрут или нет?"
 
@@ -422,8 +504,10 @@ class YandexDialogs:
                 }
                 transport_type = convert_type[self.transport_type]
                 second_transport_type = second_convert_type[self.transport_type]
-                return f"У вас несколько сохраннёных маршрутов для {transport_type} номер {self.transport_name}. " \
-                       f"Скажите откуда и куда движется {second_transport_type}"
+                return (
+                    f"У вас несколько сохраннёных маршрутов для {transport_type} номер {self.transport_name}. "
+                    f"Скажите откуда и куда едет {second_transport_type}"
+                )
             now_date = now().astimezone(timezone(self.city.time_zone.name)).replace(tzinfo=utc)
             schedule = [datetime.strptime(x, "%H:%M %Y-%m-%d").replace(tzinfo=utc) for x in self.stop.schedule]
             schedule = [x for x in schedule if x > now_date + timedelta(minutes=1)][:2]
@@ -447,7 +531,7 @@ class YandexDialogs:
                     return (
                         f"{transport_type} номер {self.transport.name}, {self.direction.name}, "
                         f"будет через {first_time_interval} в {first_time}, "
-                        f"а следующий через {second_time_interval} в {second_time}."
+                        f"а следующий через {second_time_interval} в {second_time}"
                     )
                 return (
                     f"{transport_type} номер {self.transport.name}, {self.direction.name}, "
@@ -472,8 +556,8 @@ class YandexDialogs:
         }
         transport_type = convert_type[self.transport.type]
         return (
-            f"Я не нашла расписание для {transport_type} номер {self.transport.name} от остановки "
-            f"{self.stop_name} до остановки {self.guiding_stop_name}"
+            f"Я не нашла расписание для {transport_type} номер {self.transport.name} от "
+            f"{self.stop_name} до {self.guiding_stop_name}"
         )
 
     @validate("city_name", "stop_name")
@@ -511,8 +595,9 @@ class YandexDialogs:
 
     @validate("city_name", "transport_name", "transport_type")
     def _get_delete_transport_answer(self):
-        stops = self.user.stops.filter(direction__transport__name=self.transport_name,
-                                       direction__transport__type=self.transport_type)
+        stops = self.user.stops.filter(
+            direction__transport__name=self.transport_name, direction__transport__type=self.transport_type
+        )
         convert_type = {
             "bus": "автобуса",
             "trolleybus": "троллейбуса",
@@ -520,8 +605,10 @@ class YandexDialogs:
         }
         transport_type = convert_type[self.transport_type]
         if not stops:
-            return f"Я не нашла сохраненных маршрутов для {transport_type} номер {self.transport_name}. " \
-                   f"Повторите еще раз"
+            return (
+                f"Я не нашла сохраненных маршрутов для {transport_type} номер {self.transport_name}. "
+                f"Повторите еще раз"
+            )
         self.state.update(
             {
                 "city_name": None,
@@ -535,7 +622,7 @@ class YandexDialogs:
         results = []
         for stop in stops:
             self.user.stops.remove(stop)
-            results.append(f"{transport_type} номер {self.transport_name}, {stop.direction}")
+            results.append(f"{transport_type} номер {self.transport_name}, {stop.direction.name}")
         return f"Я удалила " + self.get_messages_to_text(results)
 
     @staticmethod

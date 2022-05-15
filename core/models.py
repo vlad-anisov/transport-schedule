@@ -94,7 +94,7 @@ class Stop(models.Model):
 
 
 class User(models.Model):
-    user_id = models.CharField(max_length=100)
+    access_token = models.CharField(max_length=1000)
     city = models.ForeignKey(City, on_delete=models.CASCADE, related_name="+", blank=True, null=True)
     stops = models.ManyToManyField(Stop)
     time_format = models.CharField(max_length=13, choices=TIME_FORMATS, default="time_interval")
