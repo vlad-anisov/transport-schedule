@@ -13,11 +13,6 @@ TRANSPORT_TYPES = (
     ("tram", "Tram"),
 )
 
-TIME_FORMATS = (
-    ("time_interval", "Time interval"),
-    ("time", "Time"),
-)
-
 
 class Country(models.Model):
     name = models.CharField(max_length=100)
@@ -97,4 +92,3 @@ class User(models.Model):
     access_token = models.CharField(max_length=1000)
     city = models.ForeignKey(City, on_delete=models.CASCADE, related_name="+", blank=True, null=True)
     stops = models.ManyToManyField(Stop)
-    time_format = models.CharField(max_length=13, choices=TIME_FORMATS, default="time_interval")
