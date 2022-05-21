@@ -79,6 +79,7 @@ class Stop(models.Model):
     direction = models.ForeignKey(Direction, on_delete=models.CASCADE, related_name="stops", blank=True, null=True)
     schedule = ArrayField(models.CharField(max_length=16, blank=True, null=True), blank=True, null=True)
     update_date = models.DateTimeField(blank=True, null=True)
+    sequence = models.IntegerField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.name} {self.direction}"

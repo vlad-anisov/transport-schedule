@@ -115,7 +115,7 @@ def validate(*parameters):
                     transport_type = convert_type[getattr(self, "transport_type")]
                     transport_name = getattr(self, "transport_name")
                     stop_name = getattr(self, "stop_name")
-                    return f"Скажите куда едет {transport_type} номер {transport_name} до {stop_name}"
+                    return f"Скажите куда едет {transport_type} номер {transport_name} от {stop_name}"
                 return "Не понял ваш запрос"
 
             def get_missing_parameters():

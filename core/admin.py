@@ -74,10 +74,14 @@ class StopAdmin(admin.ModelAdmin):
     )
 
 
+class UserAdmin(admin.ModelAdmin):
+    filter_horizontal = ('stops',)
+
+
 admin.site.register(Country, CountryAdmin)
 admin.site.register(TimeZone, TimeZoneAdmin)
 admin.site.register(City, CityAdmin)
 admin.site.register(Transport, TransportAdmin)
 admin.site.register(Direction, DirectionAdmin)
 admin.site.register(Stop, StopAdmin)
-admin.site.register(User)
+admin.site.register(User, UserAdmin)

@@ -131,8 +131,15 @@ class BaseScheduleSource:
 
     async def _get_or_create_stops(self, direction, data, session):
         stops = await self._get_stops_data(direction, data, session)
-        tasks = [self._get_or_create_stop(stop, direction) for stop in stops]
-        return await asyncio.gather(*tasks)
+        saved_stops = []
+        for index, stop_name in enumerate(stops):
+            stop = await self._get_or_create_stop(stop_name, direction)
+            stop.sequence = index
+            await sync_to_async(stop.save)()
+            saved_stops.append(stop)
+        # tasks = [self._get_or_create_stop(stop, direction) for stop in stops]
+        # return await asyncio.gather(*tasks)
+        return saved_stops
 
     async def _get_stops_data(self, direction, data, session):
         return []
