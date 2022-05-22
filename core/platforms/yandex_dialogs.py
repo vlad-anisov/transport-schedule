@@ -291,7 +291,12 @@ class YandexDialogs:
         return False
 
     def get_response(self):
-        response = {
+        if not self.user:
+            return {
+                "version": self.version,
+                "start_account_linking": {},
+            }
+        return {
             "version": self.version,
             "response": {
                 "text": self.answer,
@@ -299,12 +304,6 @@ class YandexDialogs:
             },
             "session_state": self.state,
         }
-        if not self.user:
-            response = {
-                "version": self.version,
-                "start_account_linking": {},
-            }
-        return response
 
     def _get_user_from_request(self):
         access_token = self.json_data["session"]["user"].get("access_token")
