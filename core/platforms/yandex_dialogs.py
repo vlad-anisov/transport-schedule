@@ -83,17 +83,16 @@ class Command:
 
     def _get_city_name(self):
         if self.type == "save_city":
+            words_from_command = self.words_from_command
+            for word in ("город", "городе", "городом", "города"):
+                if word in words_from_command:
+                    start_index = words_from_command.index(word) + 1
+                    words_from_command = words_from_command[start_index:]
             all_city_names = list(City.objects.values_list("name", flat=True).distinct())
-            if all_city_names:
-                words_from_command = self.words_from_command
-                for word in ("город", "городе", "городом", "города"):
-                    if word in words_from_command:
-                        start_index = words_from_command.index(word) + 1
-                        words_from_command = words_from_command[start_index:]
-                for word in words_from_command:
-                    city_name, percent = process.extractOne(word, all_city_names)
-                    if percent > 90:
-                        return city_name
+            for word in words_from_command:
+                city_name, percent = process.extractOne(word, all_city_names)
+                if percent > 90:
+                    return city_name
 
     def _get_transport_name(self):
         fuzzy_transport_name = self._get_fuzzy_transport_name()
