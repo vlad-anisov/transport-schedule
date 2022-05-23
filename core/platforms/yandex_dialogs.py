@@ -86,18 +86,10 @@ class Command:
             all_city_names = list(City.objects.values_list("name", flat=True).distinct())
             if all_city_names:
                 words_from_command = self.words_from_command
-                if "город" in words_from_command:
-                    start_index = words_from_command.index("город") + 1
-                    words_from_command = words_from_command[start_index:]
-                if "городе" in words_from_command:
-                    start_index = words_from_command.index("городе") + 1
-                    words_from_command = words_from_command[start_index:]
-                if "городом" in words_from_command:
-                    start_index = words_from_command.index("городом") + 1
-                    words_from_command = words_from_command[start_index:]
-                if "города" in words_from_command:
-                    start_index = words_from_command.index("города") + 1
-                    words_from_command = words_from_command[start_index:]
+                for word in ("город", "городе", "городом", "города"):
+                    if word in words_from_command:
+                        start_index = words_from_command.index(word) + 1
+                        words_from_command = words_from_command[start_index:]
                 for word in words_from_command:
                     city_name, percent = process.extractOne(word, all_city_names)
                     if percent > 90:
