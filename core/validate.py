@@ -9,7 +9,6 @@ def validate(*parameters):
             raise ValueError(f"Invalid parameters {string_with_parameters} in validate decorator")
 
     def decorator(method):
-
         def wrapper(self, *args, **kwargs):
             def is_valid():
                 if all([getattr(self, parameter) for parameter in parameters]):
@@ -22,10 +21,11 @@ def validate(*parameters):
                     self.state["current_command"] = "save_city"
                     existing_cities = list(City.objects.values_list("name", flat=True))
                     enumeration_of_cities = ", ".join(existing_cities)
-                    return (
-                        f"Скажите в каком городе вы находитесь. Доступны города: {enumeration_of_cities}"
-                    )
-                if all(x in missing_parameters for x in ("transport_name", "transport_type", "stop_name", "guiding_stop_name")):
+                    return f"Скажите в каком городе вы находитесь. Доступны города: {enumeration_of_cities}"
+                if all(
+                    x in missing_parameters
+                    for x in ("transport_name", "transport_type", "stop_name", "guiding_stop_name")
+                ):
                     return f"Скажите номер транспорта, откуда и куда он едет"
                 if all(x in missing_parameters for x in ("transport_type", "stop_name", "guiding_stop_name")):
                     return f"Скажите тип транспорта, откуда и куда он едет"
@@ -116,7 +116,7 @@ def validate(*parameters):
                     transport_name = getattr(self, "transport_name")
                     stop_name = getattr(self, "stop_name")
                     return f"Скажите куда едет {transport_type} номер {transport_name} от {stop_name}"
-                return "Не понял ваш запрос"
+                return "Не поняла вас, повторите ещё раз"
 
             def get_missing_parameters():
                 missing_parameters = []
