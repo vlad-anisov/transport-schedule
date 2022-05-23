@@ -414,42 +414,35 @@ class YandexDialogs:
     def _get_help_answer():
         return "Чтобы узнать расписание скажите номер транспорта, откуда и куда он едет"
 
+    def reset_state(self):
+        self.state.update(
+            {
+                "city_name": None,
+                "transport_name": None,
+                "transport_type": None,
+                "guiding_stop_name": None,
+                "stop_name": None,
+                "current_command": None,
+            }
+        )
+
+
+    @validate("city_name")
     def _get_save_city_answer(self):
-        if self.command.city_name:
-            self.user.city = City.objects.filter(name=self.city_name).first()
-            self.user.save()
-            self.state.update(
-                {
-                    "city_name": None,
-                    "transport_name": None,
-                    "transport_type": None,
-                    "guiding_stop_name": None,
-                    "stop_name": None,
-                    "current_command": None,
-                }
-            )
-            return (
-                f"Я запомнила город {self.user.city.name}. "
-                "Теперь вы можете узнать расписание. "
-                "Для этого скажите номер транспорта, откуда и куда он едет"
-            )
-        existing_cities = list(City.objects.values_list("name", flat=True))
-        enumeration_of_cities = ", ".join(existing_cities)
-        return f"Такого города у меня нет. Доступны города: {enumeration_of_cities}"
+        self.user.city = City.objects.filter(name=self.city_name).first()
+        self.user.save()
+        self.reset_state
+        self.reset_state()
+        return (
+            f"Я запомнила город {self.user.city.name}. "
+            "Теперь вы можете узнать расписание. "
+            "Для этого скажите номер транспорта, откуда и куда он едет"
+        )
 
     @validate("city_name", "transport_name", "transport_type", "stop_name", "guiding_stop_name")
     def _get_save_last_schedule_answer(self):
         if self.command.is_save_last_schedule:
-            self.state.update(
-                {
-                    "city_name": None,
-                    "transport_name": None,
-                    "transport_type": None,
-                    "guiding_stop_name": None,
-                    "stop_name": None,
-                    "current_command": None,
-                }
-            )
+            self.reset_state()
             self.user.stops.add(self.stop)
             convert_type = {
                 "bus": "автобуса",
@@ -459,16 +452,7 @@ class YandexDialogs:
             transport_type = convert_type[self.stop.direction.transport.type]
             return f"Я запомнила этот маршрут, в следующий раз можно сказать только номер {transport_type}"
         elif self.command.is_save_last_schedule is False:
-            self.state.update(
-                {
-                    "city_name": None,
-                    "transport_name": None,
-                    "transport_type": None,
-                    "guiding_stop_name": None,
-                    "stop_name": None,
-                    "current_command": None,
-                }
-            )
+            self.reset_state()
             return "Хорошо, чтобы узнать расписание скажите номер транспорта, откуда и куда он едет."
         return "Скажите, сохранять последний маршрут или нет?"
 
@@ -599,16 +583,7 @@ class YandexDialogs:
             else:
                 transport_type = "транспорта"
             return f"Я не нашла расписание {transport_type} на остановке {self.stop_name}"
-        self.state.update(
-            {
-                "city_name": None,
-                "transport_name": None,
-                "transport_type": None,
-                "guiding_stop_name": None,
-                "stop_name": None,
-                "current_command": None,
-            }
-        )
+        self.reset_state()
         return " ".join([x[0] for x in results])
 
     @validate("city_name", "transport_name", "transport_type")
@@ -633,16 +608,7 @@ class YandexDialogs:
             "tram": "трамвай",
         }
         transport_type = convert_type[self.transport_type]
-        self.state.update(
-            {
-                "city_name": None,
-                "transport_name": None,
-                "transport_type": None,
-                "guiding_stop_name": None,
-                "stop_name": None,
-                "current_command": None,
-            }
-        )
+        self.reset_state()
         results = []
         for stop in stops:
             self.user.stops.remove(stop)
