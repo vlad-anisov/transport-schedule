@@ -426,12 +426,10 @@ class YandexDialogs:
             }
         )
 
-
     @validate("city_name")
     def _get_save_city_answer(self):
         self.user.city = City.objects.filter(name=self.city_name).first()
         self.user.save()
-        self.reset_state
         self.reset_state()
         return (
             f"Я запомнила город {self.user.city.name}. "
