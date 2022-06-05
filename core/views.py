@@ -35,8 +35,8 @@ async def update(request):
 
 def generate_users(request):
     city = City.objects.get(name='Минск')
-    first_stop = Stop.objects.get(pk=137434)
-    second_stop = Stop.objects.get(pk=138545)
+    first_stop = Stop.objects.get(pk=192129)
+    second_stop = Stop.objects.get(pk=153508)
     for index in range(130000):
         user = User(access_token=secrets.token_urlsafe(50), city=city)
         user.save()

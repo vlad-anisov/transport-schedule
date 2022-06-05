@@ -121,25 +121,28 @@ class Command:
                 if word.isdigit():
                     if len(self.words_from_command) >= index + 2:
                         words_from_command = self.words_from_command[index:]
-                        while words_from_command:
-                            last_word = words_from_command[-1]
-                            if last_word in (
-                                "автобус",
-                                "троллейбус",
-                                "трамвай",
-                                "автобуса",
-                                "троллейбуса",
-                                "трамвая",
-                                "остановка",
-                                "остановке",
-                                "с",
-                                "на",
-                                "от",
-                            ):
-                                if not (words_from_command.count("с") > 1 or words_from_command[-2].isdigit()):
-                                    words_from_command.pop()
-                                return "".join(words_from_command)
-                            words_from_command.pop()
+                        extreme_words = (
+                            "автобус",
+                            "троллейбус",
+                            "трамвай",
+                            "автобуса",
+                            "троллейбуса",
+                            "трамвая",
+                            "остановка",
+                            "остановке",
+                            "с",
+                            "на",
+                            "от",
+                        )
+                        if any([x in extreme_words for x in words_from_command]):
+                            while words_from_command:
+                                last_word = words_from_command[-1]
+                                if last_word in extreme_words:
+                                    if not (words_from_command.count("с") > 1 or words_from_command[-2].isdigit()):
+                                        words_from_command.pop()
+                                    return "".join(words_from_command)
+                                words_from_command.pop()
+                        return "".join(words_from_command)
                     return word
 
     def _get_transport_type(self):
@@ -553,7 +556,6 @@ class YandexDialogs:
             }
             transport = stop.direction.transport
             transport_type = transport_type_to_string[transport.type]
-
             schedules = [datetime.strptime(x, "%H:%M %Y-%m-%d").replace(tzinfo=utc) for x in stop.schedule]
             schedules = [x for x in schedules if x > now_date + timedelta(minutes=1)]
             if not schedules:
