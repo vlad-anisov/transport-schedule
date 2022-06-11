@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'core',
     'rest_framework',
+    'django_crontab',
 ]
 
 MIDDLEWARE = [
@@ -127,3 +128,7 @@ CLIENT_ID = 'e0468f4374c54d1ab4edd88259288709'
 CLIENT_SECRET = '42724b4ed6f14983af6d5b3193eed8e0'
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 262144000  # i.e. 2.5 MB
+
+CRONJOBS = [
+    ('0 */2 * * *', 'core.cron.update')
+]
