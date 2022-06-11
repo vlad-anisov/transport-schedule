@@ -36,3 +36,4 @@ tzwhere==3.0.3
 urllib3==1.26.9
 whenareyou @ git+https://github.com/FObersteiner/whenareyou.git@52c47530d4383a19f9b8b3d9daec121702bc5bc9
 yarl==1.7.2
+django-crontab==0.7.1
