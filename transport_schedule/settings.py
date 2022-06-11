@@ -129,6 +129,9 @@ CLIENT_SECRET = '42724b4ed6f14983af6d5b3193eed8e0'
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 262144000  # i.e. 2.5 MB
 
+ALLOWED_ORIGINS = ['http://vlad-anisov.com', 'https://vlad-anisov.com']
+CSRF_TRUSTED_ORIGINS = ALLOWED_ORIGINS.copy()
+
 CRONJOBS = [
     ('0 */2 * * *', 'core.cron.update')
 ]
