@@ -294,7 +294,7 @@ class YandexDialogs:
             "version": self.version,
             "response": {
                 "text": self.answer,
-                "end_session": False,
+                "end_session": self.end_session,
             },
             "session_state": self.state,
         }
@@ -450,6 +450,7 @@ class YandexDialogs:
                 "tram": "трамвая",
             }
             transport_type = convert_type[self.stop.direction.transport.type]
+            self.end_session = True
             return f"Я запомнила этот маршрут, в следующий раз можно сказать только номер {transport_type}"
         elif self.command.is_save_last_schedule is False:
             self.reset_state()
