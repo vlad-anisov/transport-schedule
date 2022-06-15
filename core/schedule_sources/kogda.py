@@ -37,7 +37,7 @@ class Kogda(BaseScheduleSource):
         async with session.get(url, headers=self.headers, timeout=10000) as response:
             soup = BeautifulSoup(await response.text(), "html.parser")
             names = soup.find_all("a", {"data-parent": "#cities"})
-            return ["Брест"]
+            return ["Гомель"]
             return [x.text.strip() for x in names]
 
     async def _get_transports_data(self, city, data, session):
