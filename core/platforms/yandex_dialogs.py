@@ -294,7 +294,7 @@ class YandexDialogs:
             "version": self.version,
             "response": {
                 "text": self.answer,
-                "end_session": self.end_session,
+                "end_session": False,
             },
             "session_state": self.state,
         }
