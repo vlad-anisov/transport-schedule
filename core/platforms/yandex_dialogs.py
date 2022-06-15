@@ -556,6 +556,8 @@ class YandexDialogs:
             }
             transport = stop.direction.transport
             transport_type = transport_type_to_string[transport.type]
+            if not stop.schedule:
+                continue
             schedules = [datetime.strptime(x, "%H:%M %Y-%m-%d").replace(tzinfo=utc) for x in stop.schedule]
             schedules = [x for x in schedules if x > now_date + timedelta(minutes=1)]
             if not schedules:
