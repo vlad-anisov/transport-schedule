@@ -459,7 +459,7 @@ class YandexDialogs:
 
     @validate("city_name", "transport_name", "transport_type", "stop_name", "guiding_stop_name")
     def _get_schedule_answer(self):
-        if self.stop:
+        if self.stop and self.stop.schedule:
             if self.is_multiple_saved_stops:
                 convert_type = {
                     "bus": "автобуса",
