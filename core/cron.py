@@ -4,6 +4,10 @@ from .schedule_updater import ScheduleUpdater
 import requests
 
 
-async def update(request):
-    text = requests.get("http://127.0.0.1/update")
+def update():
+    text = requests.get("https://vlad-anisov.com/update")
     print(text)
+
+
+def print_hello():
+    print("hello")

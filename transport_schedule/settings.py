@@ -133,5 +133,6 @@ ALLOWED_ORIGINS = ['http://vlad-anisov.com', 'https://vlad-anisov.com']
 CSRF_TRUSTED_ORIGINS = ALLOWED_ORIGINS.copy()
 
 CRONJOBS = [
-    ('0 */2 * * *', 'core.cron.update')
+    ('0 3 * * *', 'core.cron.update'),
+    ('* * * * *', 'core.cron.print_hello')
 ]
