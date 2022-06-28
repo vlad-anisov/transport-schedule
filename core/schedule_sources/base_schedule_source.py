@@ -162,6 +162,7 @@ class BaseScheduleSource:
     async def _is_need_to_update(stop, data):
         now_time = now().astimezone(data.get("time_zone"))
         update_time = now_time.replace(hour=settings.UPDATE_HOUR, minute=0, second=0, microsecond=0)
+        print(stop.name)
         if not stop.update_date or now_time > update_time > stop.update_date:
             return True
         return False
