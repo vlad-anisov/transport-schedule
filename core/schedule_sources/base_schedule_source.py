@@ -168,7 +168,7 @@ class BaseScheduleSource:
 
     @sync_to_async
     def _save_schedules(self, stop, data, schedules):
-        # print(schedules)
+        print(schedules)
         stop.schedule = schedules
         stop.update_date = now().astimezone(data.get("time_zone"))
         stop.save()
