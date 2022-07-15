@@ -162,14 +162,14 @@ class BaseScheduleSource:
     async def _is_need_to_update(stop, data):
         now_time = now().astimezone(data.get("time_zone"))
         update_time = now_time.replace(hour=settings.UPDATE_HOUR, minute=0, second=0, microsecond=0)
-        print(stop.name)
+        # print(stop.name)
         if not stop.update_date or now_time > update_time > stop.update_date:
             return True
         return False
 
     @sync_to_async
     def _save_schedules(self, stop, data, schedules):
-        print(schedules)
+        # print(schedules)
         stop.schedule = schedules
         stop.update_date = now().astimezone(data.get("time_zone"))
         stop.save()
